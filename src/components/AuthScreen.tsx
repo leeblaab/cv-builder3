@@ -47,21 +47,25 @@ export default function AuthScreen({ onClose, initialIsSignUp = false }: AuthScr
 
     try {
       if (isSignUp) {
-        const { error } = await supabase.auth.signUp({
+        console.log('Attempting sign up with:', email);
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
         });
+        console.log('Sign up response:', { data, error });
         if (error) throw error;
         setSuccessMsg("Account created successfully! Welcome.");
       } else {
-        const { error } = await supabase.auth.signInWithPassword({
+        console.log('Attempting sign in with:', email);
+        const { data, error } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
+        console.log('Sign in response:', { data, error });
         if (error) throw error;
       }
     } catch (err: any) {
-      console.error("Auth error:", err);
+      console.error("Auth error details:", JSON.stringify(err, null, 2));
       let friendlyMessage = "Authentication failed. Please try again.";
       if (err.message?.includes("User already registered")) {
         friendlyMessage = "This email is already registered.";
@@ -71,6 +75,8 @@ export default function AuthScreen({ onClose, initialIsSignUp = false }: AuthScr
         friendlyMessage = "Password is too weak.";
       } else if (err.message?.includes("Invalid login credentials")) {
         friendlyMessage = "Incorrect email or password.";
+      } else {
+        friendlyMessage = err.message || "Authentication failed. Please try again.";
       }
       setError(friendlyMessage);
     } finally {
@@ -82,12 +88,17 @@ export default function AuthScreen({ onClose, initialIsSignUp = false }: AuthScr
     setError(null);
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
+      console.log('Starting Google OAuth sign in');
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
+        options: {
+          redirectTo: window.location.origin,
+        }
       });
+      console.log('Google sign in response:', { data, error });
       if (error) throw error;
     } catch (err: any) {
-      console.error("Google auth error:", err);
+      console.error("Google auth error details:", JSON.stringify(err, null, 2));
       setError(err.message || "Google sign-in failed.");
     } finally {
       setLoading(false);

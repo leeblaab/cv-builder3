@@ -54,7 +54,14 @@ export default function AuthScreen({ onClose, initialIsSignUp = false }: AuthScr
         });
         console.log('Sign up response:', { data, error });
         if (error) throw error;
-        setSuccessMsg("Account created successfully! Welcome.");
+        
+        if (data.user && !data.session) {
+          // Email confirmation is enabled
+          setSuccessMsg("Account created successfully! Please check your email to confirm your account.");
+        } else {
+          // No email confirmation, user is logged in
+          setSuccessMsg("Account created successfully! Welcome.");
+        }
       } else {
         console.log('Attempting sign in with:', email);
         const { data, error } = await supabase.auth.signInWithPassword({

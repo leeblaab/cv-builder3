@@ -1,0 +1,6 @@
+{
+  "name": "CV Builder",
+  "description": "An interactive CV Builder that allows you to manage your professional profile and instantly tailor your CV to any job description using AI.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

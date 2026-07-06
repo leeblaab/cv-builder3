@@ -9,9 +9,8 @@ import JobTailor from "./components/JobTailor";
 import TailoredResult from "./components/TailoredResult";
 import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
-import { onAuthStateChanged, signOut, User } from "firebase/auth";
-import { doc, getDoc, setDoc } from "firebase/firestore";
-import { auth, db } from "./firebase";
+import { User } from "@supabase/supabase-js";
+import { supabase } from "./supabase";
 import AuthScreen from "./components/AuthScreen";
 import LandingPage from "./components/LandingPage";
 import BillingModal from "./components/BillingModal";
@@ -40,46 +39,58 @@ export default function App() {
   const [showAuthMode, setShowAuthMode] = useState<"signin" | "signup" | null>(null);
 
 
-  // Monitor Firebase auth state
+  // Monitor Supabase auth state
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setUser(currentUser);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      const currentUser = session?.user ?? null;
+      setUser(currentUser as any);
       if (currentUser) {
         setAuthLoading(true);
         try {
-          const userDocRef = doc(db, "users", currentUser.uid);
-          const docSnap = await getDoc(userDocRef);
-          if (docSnap.exists()) {
-            const data = docSnap.data();
-            if (data.cvData) {
-              setCVData(data.cvData);
+          const { data, error } = await supabase
+            .from("users")
+            .select("*")
+            .eq("id", currentUser.id)
+            .single();
+
+          if (error && error.code !== "PGRST116") {
+            throw error;
+          }
+
+          if (data) {
+            if (data.cv_data) {
+              setCVData(data.cv_data);
             }
-            if (data.tailorResult) {
-              setTailorResult(data.tailorResult);
+            if (data.tailor_result) {
+              setTailorResult(data.tailor_result);
             }
             if (data.plan) {
               setUserPlan(data.plan as any);
             } else {
               setUserPlan("free");
             }
-            if (data.monthlyUsage !== undefined) {
-              setMonthlyUsage(data.monthlyUsage);
+            if (data.monthly_usage !== undefined) {
+              setMonthlyUsage(data.monthly_usage);
             } else {
               setMonthlyUsage(0);
             }
           } else {
             // First time user, save default sample cvData
-            await setDoc(userDocRef, {
-              cvData: initialCV,
-              plan: "free",
-              monthlyUsage: 0,
-              updatedAt: new Date().toISOString()
-            });
+            const { error: insertError } = await supabase
+              .from("users")
+              .insert({
+                id: currentUser.id,
+                cv_data: initialCV,
+                plan: "free",
+                monthly_usage: 0,
+                updated_at: new Date().toISOString()
+              });
+            if (insertError) throw insertError;
             setUserPlan("free");
             setMonthlyUsage(0);
           }
         } catch (error) {
-          console.error("Error loading user profile from Firestore:", error);
+          console.error("Error loading user profile from Supabase:", error);
         } finally {
           setLoadCompleted(true);
           setAuthLoading(false);
@@ -93,25 +104,88 @@ export default function App() {
       }
     });
 
-    return () => unsubscribe();
+    // Also check initial session
+    const checkInitialSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      const currentUser = session?.user ?? null;
+      setUser(currentUser as any);
+      if (currentUser) {
+        setAuthLoading(true);
+        try {
+          const { data, error } = await supabase
+            .from("users")
+            .select("*")
+            .eq("id", currentUser.id)
+            .single();
+
+          if (error && error.code !== "PGRST116") {
+            throw error;
+          }
+
+          if (data) {
+            if (data.cv_data) {
+              setCVData(data.cv_data);
+            }
+            if (data.tailor_result) {
+              setTailorResult(data.tailor_result);
+            }
+            if (data.plan) {
+              setUserPlan(data.plan as any);
+            } else {
+              setUserPlan("free");
+            }
+            if (data.monthly_usage !== undefined) {
+              setMonthlyUsage(data.monthly_usage);
+            } else {
+              setMonthlyUsage(0);
+            }
+          } else {
+            // First time user, save default sample cvData
+            const { error: insertError } = await supabase
+              .from("users")
+              .insert({
+                id: currentUser.id,
+                cv_data: initialCV,
+                plan: "free",
+                monthly_usage: 0,
+                updated_at: new Date().toISOString()
+              });
+            if (insertError) throw insertError;
+            setUserPlan("free");
+            setMonthlyUsage(0);
+          }
+        } catch (error) {
+          console.error("Error loading user profile from Supabase:", error);
+        } finally {
+          setLoadCompleted(true);
+          setAuthLoading(false);
+        }
+      }
+    };
+    checkInitialSession();
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  // Automatically save cvData and tailorResult to Firestore whenever they change
+  // Automatically save cvData and tailorResult to Supabase whenever they change
   useEffect(() => {
     if (!user || !loadCompleted) return;
 
     setCloudSaving("saving");
     const delayDebounceFn = setTimeout(async () => {
       try {
-        const userDocRef = doc(db, "users", user.uid);
-        await setDoc(userDocRef, {
-          cvData,
-          tailorResult,
-          updatedAt: new Date().toISOString()
-        }, { merge: true });
+        const { error } = await supabase
+          .from("users")
+          .update({
+            cv_data: cvData,
+            tailor_result: tailorResult,
+            updated_at: new Date().toISOString()
+          })
+          .eq("id", user.id);
+        if (error) throw error;
         setCloudSaving("saved");
       } catch (error) {
-        console.error("Error auto-saving to Firestore:", error);
+        console.error("Error auto-saving to Supabase:", error);
         setCloudSaving("error");
       }
     }, 1500); // 1.5s debounce
@@ -254,11 +328,11 @@ export default function App() {
 
   const handleSignOut = async () => {
     try {
-      await signOut(auth);
+      await supabase.auth.signOut();
       setIsGuestMode(false);
       setShowAuthMode(null);
     } catch (err) {
-      console.error("Sign out error", err);
+      console.error("Sign out error:", err);
     }
   };
 
@@ -273,11 +347,14 @@ export default function App() {
     const newUsage = monthlyUsage + 1;
     setMonthlyUsage(newUsage);
     try {
-      const userDocRef = doc(db, "users", user.uid);
-      await setDoc(userDocRef, {
-        monthlyUsage: newUsage,
-        updatedAt: new Date().toISOString()
-      }, { merge: true });
+      const { error } = await supabase
+        .from("users")
+        .update({
+          monthly_usage: newUsage,
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", user.id);
+      if (error) throw error;
     } catch (e) {
       console.error("Failed to increment usage in cloud:", e);
     }
@@ -286,12 +363,15 @@ export default function App() {
   const handleUpgradePlan = async (newPlan: "free" | "pro" | "unlimited") => {
     if (!user) return;
     try {
-      const userDocRef = doc(db, "users", user.uid);
-      await setDoc(userDocRef, {
-        plan: newPlan,
-        monthlyUsage: 0, // reset quota upon successful subscription upgrade!
-        updatedAt: new Date().toISOString()
-      }, { merge: true });
+      const { error } = await supabase
+        .from("users")
+        .update({
+          plan: newPlan,
+          monthly_usage: 0, // reset quota upon successful subscription upgrade!
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", user.id);
+      if (error) throw error;
 
       setUserPlan(newPlan);
       setMonthlyUsage(0);

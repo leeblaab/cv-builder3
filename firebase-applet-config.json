@@ -1,10 +1,10 @@
 {
-  "projectId": "ultimate-voyage-k09p9",
+  "projectId": "cv-builder-d1218",
   "appId": "1:661899838984:web:1ddab5ff082711a3ad33bd",
   "apiKey": "AIzaSyCIzd1s8PlyIPf27CIIBLZ_I4wj76wj3h4",
-  "authDomain": "ultimate-voyage-k09p9.firebaseapp.com",
+  "authDomain": "cv-builder-d1218.firebaseapp.com",
   "firestoreDatabaseId": "ai-studio-cvbuilder-07c6381a-cb25-4e44-b119-a8d743eb22ea",
-  "storageBucket": "ultimate-voyage-k09p9.firebasestorage.app",
-  "messagingSenderId": "661899838984",
+  "storageBucket": "cv-builder-d1218.firebasestorage.app",
+  "messagingSenderId": "128788619373",
   "measurementId": ""
 }

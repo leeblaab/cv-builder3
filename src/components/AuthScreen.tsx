@@ -1,11 +1,5 @@
 import React, { useState } from "react";
-import { 
-  createUserWithEmailAndPassword, 
-  signInWithEmailAndPassword, 
-  signInWithPopup, 
-  GoogleAuthProvider 
-} from "firebase/auth";
-import { auth } from "../firebase";
+import { supabase } from "../supabase";
 import { FileText, Sparkles, Loader2, Mail, Lock, User, AlertCircle, CheckCircle } from "lucide-react";
 
 interface AuthScreenProps {
@@ -53,24 +47,30 @@ export default function AuthScreen({ onClose, initialIsSignUp = false }: AuthScr
 
     try {
       if (isSignUp) {
-        await createUserWithEmailAndPassword(auth, email, password);
+        const { error } = await supabase.auth.signUp({
+          email,
+          password,
+        });
+        if (error) throw error;
         setSuccessMsg("Account created successfully! Welcome.");
       } else {
-        await signInWithEmailAndPassword(auth, email, password);
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+        if (error) throw error;
       }
     } catch (err: any) {
       console.error("Auth error:", err);
       let friendlyMessage = "Authentication failed. Please try again.";
-      if (err.code === "auth/email-already-in-use") {
+      if (err.message?.includes("User already registered")) {
         friendlyMessage = "This email is already registered.";
-      } else if (err.code === "auth/invalid-email") {
+      } else if (err.message?.includes("Invalid email")) {
         friendlyMessage = "Please enter a valid email address.";
-      } else if (err.code === "auth/weak-password") {
+      } else if (err.message?.includes("Password should be at least 6 characters")) {
         friendlyMessage = "Password is too weak.";
-      } else if (err.code === "auth/invalid-credential" || err.code === "auth/wrong-password" || err.code === "auth/user-not-found") {
+      } else if (err.message?.includes("Invalid login credentials")) {
         friendlyMessage = "Incorrect email or password.";
-      } else if (err.code === "auth/operation-not-allowed") {
-        friendlyMessage = "Email/Password sign-in/sign-up is currently disabled in your Firebase console. Please go to your Firebase Console -> Authentication -> Sign-in Method, and enable the 'Email/Password' provider.";
       }
       setError(friendlyMessage);
     } finally {
@@ -82,13 +82,13 @@ export default function AuthScreen({ onClose, initialIsSignUp = false }: AuthScr
     setError(null);
     setLoading(true);
     try {
-      const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+      });
+      if (error) throw error;
     } catch (err: any) {
       console.error("Google auth error:", err);
-      if (err.code !== "auth/popup-closed-by-user") {
-        setError(err.message || "Google sign-in failed.");
-      }
+      setError(err.message || "Google sign-in failed.");
     } finally {
       setLoading(false);
     }
